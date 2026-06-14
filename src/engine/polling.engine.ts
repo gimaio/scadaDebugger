@@ -2,6 +2,7 @@ import { excelLoader } from "../core/excel.loader";
 import { modbusManager } from "../drivers/modbus.manager";
 import { scadaState } from "../state/scada.state";
 import { config } from "../core/config.loader";
+import { excelService } from "../core/excel.service";
 
 export class PollingEngine {
     private running = false;
@@ -26,27 +27,41 @@ export class PollingEngine {
         
     }
 
-private getModbusSubsystems(): string[] {
-    const keys = config.getAllKeys();
+    private getModbusSubsystems(): string[] {
+        const keys = config.getAllKeys();
 
-    return keys
-        .filter((k: string) => {
-            if (!k.startsWith("MODBUS_")) return false;
-            if (k.includes("ADDRESS_")) return false;
-            if (k.includes("CYCLE_TIME_")) return false;
+        return keys
+            .filter((k: string) => {
+                if (!k.startsWith("MODBUS_")) return false;
+                if (k.includes("ADDRESS_")) return false;
+                if (k.includes("CYCLE_TIME_")) return false;
 
-            const value = config.get(k);
-            if (!value) return false;
+                const value = config.get(k);
+                if (!value) return false;
 
-            // accetta solo valori tipo "192.168.1.10:502"
-            return value.includes(":");
-        })
-        .map((k: string) => k.replace("MODBUS_", ""));
-}
+                // accetta solo valori tipo "192.168.1.10:502"
+                return value.includes(":");
+            })
+            .map((k: string) => k.replace("MODBUS_", ""));
+    }
 
-
+    private getAdsSubsystems(): string[] {
+        const keys = config.getAllKeys();
+    
+        return keys
+            .filter(k => k.startsWith("ADS_"))
+            .filter(k => !k.startsWith("ADS_ADDRESS_"))
+            .filter(k => !k.startsWith("ADS_CYCLE_TIME_"))
+            .filter(k => {
+                const value = config.get(k);
+                return typeof value === "string" && value.includes(":"); // deve essere IP:PORT
+            })
+            .map(k => k.replace("ADS_", ""));
+    }
+    
+    
     private initializeState() {
-        const vars = excelLoader.load().filter(v =>
+        const vars = excelService.load().filter(v =>
             v.driverType === "MTCP" &&
             typeof v.address === "number" &&
             !isNaN(v.address)
@@ -76,7 +91,7 @@ private getModbusSubsystems(): string[] {
 
     private async pollSubsystem(subsystem: string) {
         // 1. Filtra SOLO variabili MTCP con address valido
-        const vars = excelLoader.load().filter(v =>
+        const vars = excelService.load().filter(v =>
             v.driverType === "MTCP" &&
             v.subsystem === subsystem &&
             typeof v.address === "number" &&
